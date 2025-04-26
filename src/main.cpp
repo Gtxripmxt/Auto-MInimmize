@@ -1,56 +1,60 @@
+#define UNICODE
+#define _UNICODE
+
 #include <Geode/Geode.hpp>
 #include <Windows.h>
 
 using namespace geode::prelude;
 
-HHOOK g_keyboardHook = nullptr;
-
-LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION) {
-        KBDLLHOOKSTRUCT* pKeyInfo = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
-        
-        if (wParam == WM_KEYDOWN && (pKeyInfo->vkCode == VK_LWIN || pKeyInfo->vkCode == VK_RWIN)) {
-            HWND hWnd = FindWindowA("CocosDenshion", nullptr);
-            if (!hWnd) {
-                hWnd = FindWindowA("GLFW30", nullptr);
-            }
-            if (!hWnd) {
-                hWnd = FindWindowA("GDWindowClass", nullptr);
-            }
-            
-            if (hWnd) {
-                if (GetForegroundWindow() == hWnd) {
-                    ShowWindow(hWnd, SW_MINIMIZE);
-                    return 1;
-                }
-            }
-        }
-    }
-    
-    return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
+// Helper: check if Windows Start Menu is open
+bool isStartMenuOpen() {
+    HWND startMenu = FindWindowW(L"Windows.UI.Core.CoreWindow", nullptr);
+    return startMenu != nullptr;
 }
 
-class AutoMinimizeMod : public geode::Mod {
-    void onEnable(geode::ModLoadEvent*) override {
-        g_keyboardHook = SetWindowsHookEx(
-            WH_KEYBOARD_LL,
-            LowLevelKeyboardProc,
-            GetModuleHandle(NULL),
-            0
-        );
-        
-        if (g_keyboardHook) {
-            log::info("Auto Minimizer mod: Keyboard hook installed successfully");
-        } else {
-            log::error("Auto Minimizer mod: Failed to install keyboard hook. Error code: {}", GetLastError());
+class WinKeyMinimizer : public CCNode {
+public:
+    static WinKeyMinimizer* create() {
+        auto ret = new WinKeyMinimizer();
+        if (ret && ret->init()) {
+            ret->autorelease();
+            return ret;
+        }
+        delete ret;
+        return nullptr;
+    }
+
+    bool init() override {
+        if (!CCNode::init())
+            return false;
+
+        this->scheduleUpdate();
+        m_minimized = false;
+        return true;
+    }
+
+    void update(float) override {
+        auto settings = GameManager::sharedState();
+        bool isFullscreen = settings->getGameVariable("0123");
+        bool isBorderless = settings->getGameVariable("0124");
+
+        if (isFullscreen && isBorderless) {
+            if (isStartMenuOpen() && !m_minimized) {
+                HWND window = GetActiveWindow();
+                if (window) {
+                    ShowWindow(window, SW_MINIMIZE);
+                    m_minimized = true;
+                }
+            } else if (!isStartMenuOpen()) {
+                m_minimized = false;
+            }
         }
     }
-    
-    void onDisable() override {
-        if (g_keyboardHook) {
-            UnhookWindowsHookEx(g_keyboardHook);
-            g_keyboardHook = nullptr;
-            log::info("Auto Minimizer mod: Keyboard hook removed");
-        }
-    }
+
+private:
+    bool m_minimized;
 };
+
+$on_mod(Loaded) {
+    CCDirector::sharedDirector()->getRunningScene()->addChild(WinKeyMinimizer::create(), INT_MAX);
+}
