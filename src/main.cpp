@@ -1,37 +1,47 @@
 #include <Geode/Geode.hpp>
+#include <Geode/modify/CCEGLView.hpp>
 #include <Windows.h>
 
 using namespace geode::prelude;
 
-namespace {
-    void checkForWindowsKey(float) {
-        if (isFullscreenBorderless()) {
-            if (GetAsyncKeyState(VK_LWIN) & 0x8000 || GetAsyncKeyState(VK_RWIN) & 0x8000) {
-                minimizeWindow();
+class $modify(CCEGLViewWin) CCEGLView {
+private:
+    WNDPROC m_oldWndProc;
+    
+    static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+        auto self = reinterpret_cast<CCEGLViewWin*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+        
+        if (message == WM_KEYDOWN) {
+            if (wParam == VK_LWIN || wParam == VK_RWIN) {
+                ShowWindow(hWnd, SW_MINIMIZE);
+                return 0;
             }
         }
+        
+
+        return CallWindowProc(self->m_oldWndProc, hWnd, message, wParam, lParam);
     }
 
-    bool isFullscreenBorderless() {
-        auto settings = GameManager::sharedState();
-        bool isFullscreen = settings->getGameVariable("0010"); // fullscreen
-        bool isBorderless = settings->getGameVariable("0040"); // borderless
-        return isFullscreen && isBorderless;
-    }
-
-    void minimizeWindow() {
-        HWND hwnd = GetActiveWindow();
-        if (hwnd) {
-            ShowWindow(hwnd, SW_MINIMIZE);
+public:
+    bool $modify(initWithRect) initWithRect(RECT rect, float, bool isFullscreen) {
+        if (!$original(rect, 1.0f, isFullscreen)) {
+            return false;
         }
+        
+        HWND hWnd = this->getWin32Window();
+        
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        
+        m_oldWndProc = reinterpret_cast<WNDPROC>(
+            SetWindowLongPtr(hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc))
+        );
+        
+        log::info("Win Minimizer mod initialized");
+        return true;
     }
-}
+};
 
-$on_mod(Loaded) {
-    CCDirector::sharedDirector()->getScheduler()->scheduleSelector(
-        schedule_selector(checkForWindowsKey),
-        CCDirector::sharedDirector(),
-        0.1f,
-        false
-    );
+
+$execute {
+    log::info("Win Minimizer mod loaded");
 }
