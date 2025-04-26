@@ -10,9 +10,12 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         KBDLLHOOKSTRUCT* pKeyInfo = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
         
         if (wParam == WM_KEYDOWN && (pKeyInfo->vkCode == VK_LWIN || pKeyInfo->vkCode == VK_RWIN)) {
-            HWND hWnd = FindWindow(L"CocosDenshion", nullptr);
+            HWND hWnd = FindWindowA("CocosDenshion", nullptr);
             if (!hWnd) {
-                hWnd = FindWindow(L"GLFW30", nullptr);
+                hWnd = FindWindowA("GLFW30", nullptr);
+            }
+            if (!hWnd) {
+                hWnd = FindWindowA("GDWindowClass", nullptr);
             }
             
             if (hWnd) {
@@ -27,30 +30,27 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
 }
 
-$on_mod(Loaded) {
-    g_keyboardHook = SetWindowsHookEx(
-        WH_KEYBOARD_LL,
-        LowLevelKeyboardProc,
-        GetModuleHandle(NULL),
-        0
-    );
-    
-    if (g_keyboardHook) {
-        log::info("Yippie sussces");
-    } else {
-        log::error("Error idk", GetLastError());
+class AutoMinimizeMod : public geode::Mod {
+    void onEnable(geode::ModLoadEvent*) override {
+        g_keyboardHook = SetWindowsHookEx(
+            WH_KEYBOARD_LL,
+            LowLevelKeyboardProc,
+            GetModuleHandle(NULL),
+            0
+        );
+        
+        if (g_keyboardHook) {
+            log::info("Auto Minimizer mod: Keyboard hook installed successfully");
+        } else {
+            log::error("Auto Minimizer mod: Failed to install keyboard hook. Error code: {}", GetLastError());
+        }
     }
     
-    return true;
-}
-
-// Clean up hook when the mod is unloaded
-$on_mod(Unloaded) {
-    if (g_keyboardHook) {
-        UnhookWindowsHookEx(g_keyboardHook);
-        g_keyboardHook = nullptr;
-        log::info("Win Minimizer mod: Keyboard hook removed");
+    void onDisable() override {
+        if (g_keyboardHook) {
+            UnhookWindowsHookEx(g_keyboardHook);
+            g_keyboardHook = nullptr;
+            log::info("Auto Minimizer mod: Keyboard hook removed");
+        }
     }
-    
-    return true;
-}
+};
