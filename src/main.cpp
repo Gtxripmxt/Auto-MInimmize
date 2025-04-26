@@ -33,6 +33,3 @@ class $modify(CCEGLView) {
         return true;
     }
 };
-
-$execute {
-    log::info("Win Minimizer mod 
