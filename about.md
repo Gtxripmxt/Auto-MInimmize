@@ -1,3 +1,3 @@
-# Template Mod
+# Auto Minimize
 
-Edit about.md to change this
+-A mod that allows you to minimize the game when having the setting fullscreen borderless enabled by pressing the win key.
